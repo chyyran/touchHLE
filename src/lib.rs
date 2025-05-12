@@ -98,6 +98,22 @@ pub extern "C" fn SDL_main(
     0
 }
 
+/// This is the true entry point on Android (SDLActivity calls it after
+/// initialization). On other platforms the true entry point is in src/bin.rs.
+#[cfg(target_os = "ios")]
+#[no_mangle]
+pub extern "C" fn SDL_main(
+    _argc: std::ffi::c_int,
+    _argv: *const *const std::ffi::c_char,
+) -> std::ffi::c_int {
+    // Empty args: brings up app picker.
+    match main([String::new()].into_iter()) {
+        Ok(_) => echo!("touchHLE finished"),
+        Err(e) => echo!("touchHLE errored: {e:?}"),
+    }
+    0
+}
+
 const USAGE: &str = "\
 Usage:
     touchHLE path/to/some.app
