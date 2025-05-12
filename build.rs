@@ -100,4 +100,39 @@ pub fn main() {
         )
         .unwrap();
     }
+
+    // This should really live in SDL2, but we'll just keep it here
+    // for now before upstreaming
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "ios"
+        || std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "ios-sim"
+    {
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=Foundation");
+
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=CoreFoundation");
+
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=CoreGraphics");
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=CoreMotion");
+
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=QuartzCore");
+
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=AVFAudio");
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=AudioToolbox");
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=UIKit");
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=CoreHaptics");
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=CoreBluetooth");
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=OpenGLES");
+        println!("cargo:rustc-link-arg=-framework");
+        println!("cargo:rustc-link-arg=GameController");
+    }
 }

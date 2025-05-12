@@ -69,6 +69,9 @@ touchHLE_pvrt_decompress_wrapper = { path = "src/image/pvrt_decompress_wrapper" 
 touchHLE_stb_image_wrapper = { path = "src/image/stb_image_wrapper" }
 touchHLE_version = { path = "src/version" }
 
+[patch.crates-io]
+cmake = { git = 'https://github.com/chyyran/cmake-rs', branch = "fix-iphone-build" }
+
 [build-dependencies]
 cargo-license = "0.5.1"
 cc = { workspace = true }
