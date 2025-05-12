@@ -1,0 +1,368 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 53;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		CA0003960BB43D51EEFBC613 /* Cargo.toml in Sources */ = {isa = PBXBuildFile; fileRef = CAF9B84F68633EF4668187A5 /* Cargo.toml */; settings = {COMPILER_FLAGS = "--lib"; }; };
+		CA0103960BB455F3E78A354E /* Cargo.toml in Sources */ = {isa = PBXBuildFile; fileRef = CAF9B84F68633EF4668187A5 /* Cargo.toml */; settings = {COMPILER_FLAGS = "--lib"; }; };
+		CA0203960BB4D666C2491F60 /* Cargo.toml in Sources */ = {isa = PBXBuildFile; fileRef = CAF9B84F68633EF4668187A5 /* Cargo.toml */; settings = {COMPILER_FLAGS = "--bin 'touchHLE'"; }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXBuildRule section */
+		CAF4B84F6863AC6C1400ACA8 /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			dependencyFile = "$(DERIVED_FILE_DIR)/$(ARCHS)-$(EXECUTABLE_NAME).d";
+			filePatterns = "*/Cargo.toml";
+			fileType = pattern.proxy;
+			inputFiles = (
+			);
+			isEditable = 0;
+			name = "Cargo project build";
+			outputFiles = (
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_NAME)",
+			);
+			runOncePerArchitecture = 0;
+			script = "# generated with cargo-xcode 1.11.0\nset -euo pipefail;\nexport PATH=\"$HOME/.cargo/bin:$PATH:/usr/local/bin:/opt/homebrew/bin\";\n# don't use ios/watchos linker for build scripts and proc macros\nexport CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=/usr/bin/ld\nexport CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/bin/ld\nexport NO_COLOR=1\n\ncase \"$PLATFORM_NAME\" in\n \"macosx\")\n  CARGO_XCODE_TARGET_OS=darwin\n  if [ \"${IS_MACCATALYST-NO}\" = YES ]; then\n   CARGO_XCODE_TARGET_OS=ios-macabi\n  fi\n  ;;\n \"iphoneos\") CARGO_XCODE_TARGET_OS=ios ;;\n \"iphonesimulator\") CARGO_XCODE_TARGET_OS=ios-sim ;;\n \"appletvos\" | \"appletvsimulator\") CARGO_XCODE_TARGET_OS=tvos ;;\n \"watchos\") CARGO_XCODE_TARGET_OS=watchos ;;\n \"watchsimulator\") CARGO_XCODE_TARGET_OS=watchos-sim ;;\n \"xros\") CARGO_XCODE_TARGET_OS=visionos ;;\n \"xrsimulator\") CARGO_XCODE_TARGET_OS=visionos-sim ;;\n *)\n  CARGO_XCODE_TARGET_OS=\"$PLATFORM_NAME\"\n  echo >&2 \"warning: cargo-xcode needs to be updated to handle $PLATFORM_NAME\"\n  ;;\nesac\n\nCARGO_XCODE_TARGET_TRIPLES=\"\"\nCARGO_XCODE_TARGET_FLAGS=\"\"\nLIPO_ARGS=\"\"\nfor arch in $ARCHS; do\n if [[ \"$arch\" == \"arm64\" ]]; then arch=aarch64; fi\n if [[ \"$arch\" == \"i386\" && \"$CARGO_XCODE_TARGET_OS\" != \"ios\" ]]; then arch=i686; fi\n triple=\"${arch}-apple-$CARGO_XCODE_TARGET_OS\"\n CARGO_XCODE_TARGET_TRIPLES+=\" $triple\"\n CARGO_XCODE_TARGET_FLAGS+=\" --target=$triple\"\n LIPO_ARGS+=\"$CARGO_TARGET_DIR/$triple/$CARGO_XCODE_BUILD_PROFILE/$CARGO_XCODE_CARGO_FILE_NAME\n\"\ndone\n\necho >&2 \"Cargo $CARGO_XCODE_BUILD_PROFILE $ACTION for $PLATFORM_NAME $ARCHS =$CARGO_XCODE_TARGET_TRIPLES; using ${SDK_NAMES:-}. \\$PATH is:\"\ntr >&2 : '\\n' <<<\"$PATH\"\n\nif command -v rustup &> /dev/null; then\n for triple in $CARGO_XCODE_TARGET_TRIPLES; do\n  if ! rustup target list --installed | grep -Eq \"^$triple$\"; then\n   echo >&2 \"warning: this build requires rustup toolchain for $triple, but it isn't installed (will try rustup next)\"\n   rustup target add \"$triple\" || {\n    echo >&2 \"warning: can't install $triple, will try nightly -Zbuild-std\";\n    OTHER_INPUT_FILE_FLAGS+=\" -Zbuild-std\";\n    if [ -z \"${RUSTUP_TOOLCHAIN:-}\" ]; then\n     export RUSTUP_TOOLCHAIN=nightly\n    fi\n    break;\n   }\n  fi\n done\nfi\n\nif [ \"$CARGO_XCODE_BUILD_PROFILE\" = release ]; then\n OTHER_INPUT_FILE_FLAGS=\"$OTHER_INPUT_FILE_FLAGS --release\"\nfi\n\nif [ \"$ACTION\" = clean ]; then\n cargo clean --verbose --manifest-path=\"$SCRIPT_INPUT_FILE\" $CARGO_XCODE_TARGET_FLAGS $OTHER_INPUT_FILE_FLAGS;\n rm -f \"$SCRIPT_OUTPUT_FILE_0\"\n exit 0\nfi\n\n{ cargo build --manifest-path=\"$SCRIPT_INPUT_FILE\" --features=\"${CARGO_XCODE_FEATURES:-}\" $CARGO_XCODE_TARGET_FLAGS $OTHER_INPUT_FILE_FLAGS --verbose --message-format=short 2>&1 | sed -E 's/^([^ :]+:[0-9]+:[0-9]+: error)/\\1: /' >&2; } || { echo >&2 \"$SCRIPT_INPUT_FILE: error: cargo-xcode project build failed; $CARGO_XCODE_TARGET_TRIPLES\"; exit 1; }\n\ntr '\\n' '\\0' <<<\"$LIPO_ARGS\" | xargs -0 lipo -create -output \"$SCRIPT_OUTPUT_FILE_0\"\n\nif [ ${LD_DYLIB_INSTALL_NAME:+1} ]; then\n install_name_tool -id \"$LD_DYLIB_INSTALL_NAME\" \"$SCRIPT_OUTPUT_FILE_0\"\nfi\n\nDEP_FILE_DST=\"$DERIVED_FILE_DIR/${ARCHS}-${EXECUTABLE_NAME}.d\"\necho \"\" > \"$DEP_FILE_DST\"\nfor triple in $CARGO_XCODE_TARGET_TRIPLES; do\n BUILT_SRC=\"$CARGO_TARGET_DIR/$triple/$CARGO_XCODE_BUILD_PROFILE/$CARGO_XCODE_CARGO_FILE_NAME\"\n\n # cargo generates a dep file, but for its own path, so append our rename to it\n DEP_FILE_SRC=\"$CARGO_TARGET_DIR/$triple/$CARGO_XCODE_BUILD_PROFILE/$CARGO_XCODE_CARGO_DEP_FILE_NAME\"\n if [ -f \"$DEP_FILE_SRC\" ]; then\n  cat \"$DEP_FILE_SRC\" >> \"$DEP_FILE_DST\"\n fi\n echo >> \"$DEP_FILE_DST\" \"${SCRIPT_OUTPUT_FILE_0/ /\\\\ /}: ${BUILT_SRC/ /\\\\ /}\"\ndone\ncat \"$DEP_FILE_DST\"\n\necho \"success: $ACTION of $SCRIPT_OUTPUT_FILE_0 for $CARGO_XCODE_TARGET_TRIPLES\"\n";
+		};
+/* End PBXBuildRule section */
+
+/* Begin PBXFileReference section */
+		CA00CE75248179F4CE4CFD7B /* touchHLE.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = touchHLE.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA01D93B095F694F42EFE598 /* libtouchHLE_static.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libtouchHLE_static.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA02DF4D65527FE681DD4BD9 /* touchHLE */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = touchHLE; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAF9B84F68633EF4668187A5 /* Cargo.toml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Cargo.toml; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		CAF0B84F6863D65BC3C892A8 = {
+			isa = PBXGroup;
+			children = (
+				CAF9B84F68633EF4668187A5 /* Cargo.toml */,
+				CAF1B84F686322869D176AE5 /* Products */,
+				CAF2B84F686398AF0B5890DB /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		CAF1B84F686322869D176AE5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CA00CE75248179F4CE4CFD7B /* touchHLE.dylib */,
+				CA01D93B095F694F42EFE598 /* libtouchHLE_static.a */,
+				CA02DF4D65527FE681DD4BD9 /* touchHLE */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CAF2B84F686398AF0B5890DB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CA00CE7524813D51EEFBC613 /* touchHLE.dylib (cdylib) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CA00027FDBCB3D51EEFBC613 /* Build configuration list for PBXNativeTarget "touchHLE.dylib (cdylib)" */;
+			buildPhases = (
+				CA001BBF42A53D51EEFBC613 /* Sources */,
+			);
+			buildRules = (
+				CAF4B84F6863AC6C1400ACA8 /* PBXBuildRule */,
+			);
+			dependencies = (
+			);
+			name = "touchHLE.dylib (cdylib)";
+			productName = touchHLE.dylib;
+			productReference = CA00CE75248179F4CE4CFD7B /* touchHLE.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+		CA01D93B095F55F3E78A354E /* touchHLE.a (static library) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CA01027FDBCB55F3E78A354E /* Build configuration list for PBXNativeTarget "touchHLE.a (static library)" */;
+			buildPhases = (
+				CA011BBF42A555F3E78A354E /* Sources */,
+			);
+			buildRules = (
+				CAF4B84F6863AC6C1400ACA8 /* PBXBuildRule */,
+			);
+			dependencies = (
+			);
+			name = "touchHLE.a (static library)";
+			productName = libtouchHLE_static.a;
+			productReference = CA01D93B095F694F42EFE598 /* libtouchHLE_static.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		CA02DF4D6552D666C2491F60 /* touchHLE (standalone executable) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CA02027FDBCBD666C2491F60 /* Build configuration list for PBXNativeTarget "touchHLE (standalone executable)" */;
+			buildPhases = (
+				CA021BBF42A5D666C2491F60 /* Sources */,
+			);
+			buildRules = (
+				CAF4B84F6863AC6C1400ACA8 /* PBXBuildRule */,
+			);
+			dependencies = (
+			);
+			name = "touchHLE (standalone executable)";
+			productName = touchHLE;
+			productReference = CA02DF4D65527FE681DD4BD9 /* touchHLE */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CAF3B84F6863E04653AD465F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1510;
+				TargetAttributes = {
+					CA00CE7524813D51EEFBC613 = {
+						CreatedOnToolsVersion = 9.2;
+						ProvisioningStyle = Automatic;
+					};
+					CA01D93B095F55F3E78A354E = {
+						CreatedOnToolsVersion = 9.2;
+						ProvisioningStyle = Automatic;
+					};
+					CA02DF4D6552D666C2491F60 = {
+						CreatedOnToolsVersion = 9.2;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = CAF6B84F686380E02D6C7F57 /* Build configuration list for PBXProject "touchHLE" */;
+			compatibilityVersion = "Xcode 11.4";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = CAF0B84F6863D65BC3C892A8;
+			productRefGroup = CAF1B84F686322869D176AE5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CA00CE7524813D51EEFBC613 /* touchHLE.dylib (cdylib) */,
+				CA01D93B095F55F3E78A354E /* touchHLE.a (static library) */,
+				CA02DF4D6552D666C2491F60 /* touchHLE (standalone executable) */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CA001BBF42A53D51EEFBC613 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA0003960BB43D51EEFBC613 /* Cargo.toml in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CA011BBF42A555F3E78A354E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA0103960BB455F3E78A354E /* Cargo.toml in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CA021BBF42A5D666C2491F60 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA0203960BB4D666C2491F60 /* Cargo.toml in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CA000601FE3C3D51EEFBC613 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"ADDITIONAL_SDKS[sdk=a*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=i*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=w*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=x*]" = "iphonesimulator iphoneos";
+				CARGO_XCODE_CARGO_DEP_FILE_NAME = libtouchHLE.d;
+				CARGO_XCODE_CARGO_FILE_NAME = libtouchHLE.dylib;
+				DYLIB_COMPATIBILITY_VERSION = 0;
+				PRODUCT_NAME = touchHLE;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+			};
+			name = Debug;
+		};
+		CA00744F31733D51EEFBC613 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"ADDITIONAL_SDKS[sdk=a*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=i*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=w*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=x*]" = "iphonesimulator iphoneos";
+				CARGO_XCODE_CARGO_DEP_FILE_NAME = libtouchHLE.d;
+				CARGO_XCODE_CARGO_FILE_NAME = libtouchHLE.dylib;
+				DYLIB_COMPATIBILITY_VERSION = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = touchHLE;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+			};
+			name = Release;
+		};
+		CA010601FE3C55F3E78A354E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ADDITIONAL_SDKS = "";
+				"ADDITIONAL_SDKS[sdk=a*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=i*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=w*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=x*]" = "iphonesimulator iphoneos";
+				CARGO_XCODE_CARGO_DEP_FILE_NAME = libtouchHLE.d;
+				CARGO_XCODE_CARGO_FILE_NAME = libtouchHLE.a;
+				INSTALL_GROUP = "";
+				INSTALL_MODE_FLAG = "";
+				INSTALL_OWNER = "";
+				PRODUCT_NAME = touchHLE_static;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "xrsimulator xros watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
+			};
+			name = Debug;
+		};
+		CA01744F317355F3E78A354E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"ADDITIONAL_SDKS[sdk=a*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=i*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=w*]" = "iphonesimulator iphoneos";
+				"ADDITIONAL_SDKS[sdk=x*]" = "iphonesimulator iphoneos";
+				CARGO_XCODE_CARGO_DEP_FILE_NAME = libtouchHLE.d;
+				CARGO_XCODE_CARGO_FILE_NAME = libtouchHLE.a;
+				INSTALL_GROUP = "";
+				INSTALL_MODE_FLAG = "";
+				INSTALL_OWNER = "";
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = touchHLE_static;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "xrsimulator xros watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
+			};
+			name = Release;
+		};
+		CA020601FE3CD666C2491F60 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CARGO_XCODE_CARGO_DEP_FILE_NAME = touchHLE.d;
+				CARGO_XCODE_CARGO_FILE_NAME = touchHLE;
+				PRODUCT_NAME = touchHLE;
+				SUPPORTED_PLATFORMS = macosx;
+			};
+			name = Debug;
+		};
+		CA02744F3173D666C2491F60 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CARGO_XCODE_CARGO_DEP_FILE_NAME = touchHLE.d;
+				CARGO_XCODE_CARGO_FILE_NAME = touchHLE;
+				PRODUCT_NAME = touchHLE;
+				SUPPORTED_PLATFORMS = macosx;
+			};
+			name = Release;
+		};
+		CAF7A5F9F72E3CC16B37690B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"ADDITIONAL_SDKS[sdk=a*]" = macosx;
+				"ADDITIONAL_SDKS[sdk=i*]" = macosx;
+				"ADDITIONAL_SDKS[sdk=w*]" = macosx;
+				"ADDITIONAL_SDKS[sdk=x*]" = macosx;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CARGO_TARGET_DIR = "$(PROJECT_TEMP_DIR)/cargo_target";
+				CARGO_XCODE_BUILD_PROFILE = release;
+				CARGO_XCODE_FEATURES = "";
+				CURRENT_PROJECT_VERSION = 0.2;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				MARKETING_VERSION = 0.2.2;
+				PRODUCT_NAME = touchHLE;
+				RUSTUP_TOOLCHAIN = "";
+				SDKROOT = macosx;
+				SUPPORTS_MACCATALYST = YES;
+			};
+			name = Release;
+		};
+		CAF8A5F9F72E228BE02872F8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"ADDITIONAL_SDKS[sdk=a*]" = macosx;
+				"ADDITIONAL_SDKS[sdk=i*]" = macosx;
+				"ADDITIONAL_SDKS[sdk=w*]" = macosx;
+				"ADDITIONAL_SDKS[sdk=x*]" = macosx;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CARGO_TARGET_DIR = "$(PROJECT_TEMP_DIR)/cargo_target";
+				CARGO_XCODE_BUILD_PROFILE = debug;
+				CARGO_XCODE_FEATURES = "";
+				CURRENT_PROJECT_VERSION = 0.2;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				MARKETING_VERSION = 0.2.2;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = touchHLE;
+				RUSTUP_TOOLCHAIN = "";
+				SDKROOT = macosx;
+				SUPPORTS_MACCATALYST = YES;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CA00027FDBCB3D51EEFBC613 /* Build configuration list for PBXNativeTarget "touchHLE.dylib (cdylib)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CA00744F31733D51EEFBC613 /* Release */,
+				CA000601FE3C3D51EEFBC613 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CA01027FDBCB55F3E78A354E /* Build configuration list for PBXNativeTarget "touchHLE.a (static library)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CA01744F317355F3E78A354E /* Release */,
+				CA010601FE3C55F3E78A354E /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CA02027FDBCBD666C2491F60 /* Build configuration list for PBXNativeTarget "touchHLE (standalone executable)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CA02744F3173D666C2491F60 /* Release */,
+				CA020601FE3CD666C2491F60 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CAF6B84F686380E02D6C7F57 /* Build configuration list for PBXProject "touchHLE" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CAF7A5F9F72E3CC16B37690B /* Release */,
+				CAF8A5F9F72E228BE02872F8 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = CAF3B84F6863E04653AD465F /* Project object */;
+}
