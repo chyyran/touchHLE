@@ -653,6 +653,8 @@ unsafe fn present_renderbuffer(gles: &mut dyn GLES, window: &mut Window) {
         tex_env_mode_arr.as_ptr().cast(),
     );
 
+    window.rebind_framebuffer();
+
     // Draw the quad
     present_frame(
         gles,

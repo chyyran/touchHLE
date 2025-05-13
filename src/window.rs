@@ -28,6 +28,16 @@ use std::num::NonZeroU32;
 use std::ptr::null_mut;
 use std::time::{Duration, Instant};
 
+#[repr(C)]
+#[allow(non_camel_case_types)]
+#[cfg(target_os = "ios")]
+struct SDL_SysWMinfoUIKit {
+    _window: *const std::ffi::c_void,
+    framebuffer: std::ffi::c_uint,
+    colorbuffer: std::ffi::c_uint,
+    resolve_framebuffer: std::ffi::c_uint,
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DeviceOrientation {
     Portrait,
@@ -1008,6 +1018,7 @@ impl Window {
         let viewport = (vx, vy + self.viewport_y_offset(), vw, vh);
 
         self.make_internal_gl_ctx_current();
+        self.rebind_framebuffer();
 
         let image = self.splash_image.as_ref().unwrap();
         let gl_ctx = self.internal_gl_ctx.as_deref_mut().unwrap();
@@ -1048,7 +1059,7 @@ impl Window {
             gl_ctx.DeleteTextures(1, &texture);
         };
 
-        self.window.gl_swap_window();
+        self.swap_window();
 
         // hold onto GL context so the image doesn't disappear, and hold
         // onto image so we can rotate later if necessary
@@ -1056,8 +1067,56 @@ impl Window {
 
     /// Swap front-buffer and back-buffer so the result of OpenGL rendering is
     /// presented.
-    pub fn swap_window(&self) {
+    pub fn swap_window(&mut self) {
+        self.rebind_renderbuffer();
         self.window.gl_swap_window();
+    }
+
+    #[cfg(target_os = "ios")]
+    fn get_sys_wm_info_ios(&self) -> SDL_SysWMinfoUIKit {
+        use sdl2_sys::{SDL_GetVersion, SDL_GetWindowWMInfo, SDL_SysWMinfo};
+        use std::mem::MaybeUninit;
+
+        unsafe {
+            let mut wminfo = MaybeUninit::<SDL_SysWMinfo>::zeroed();
+            SDL_GetVersion(&raw mut (*wminfo.as_mut_ptr()).version);
+            SDL_GetWindowWMInfo(self.window.raw(), wminfo.as_mut_ptr());
+
+            let uikit_info_ptr = (&raw const (*wminfo.as_ptr()).info) as *const SDL_SysWMinfoUIKit;
+            uikit_info_ptr.read()
+        }
+    }
+
+    pub fn get_default_framebuffer(&self) -> u32 {
+        #[cfg(target_os = "ios")]
+        return self.get_sys_wm_info_ios().framebuffer;
+
+        #[cfg(not(target_os = "ios"))]
+        0
+    }
+
+    pub fn rebind_framebuffer(&mut self) {
+        #[cfg(target_os = "ios")]
+        {
+            use crate::gles::gles11_raw as gles11;
+            let framebuffer = self.get_sys_wm_info_ios().framebuffer;
+            unsafe {
+                self.get_internal_gl_ctx()
+                    .BindFramebufferOES(gles11::FRAMEBUFFER_OES, framebuffer);
+            }
+        }
+    }
+
+    pub fn rebind_renderbuffer(&mut self) {
+        #[cfg(target_os = "ios")]
+        {
+            use crate::gles::gles11_raw as gles11;
+            let renderbuffer = self.get_sys_wm_info_ios().colorbuffer;
+            unsafe {
+                self.get_internal_gl_ctx()
+                    .BindRenderbufferOES(gles11::RENDERBUFFER_OES, renderbuffer);
+            }
+        }
     }
 
     /// Consider the emulated device to be rotated to a particular orientation.

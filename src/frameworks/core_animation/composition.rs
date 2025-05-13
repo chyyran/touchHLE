@@ -120,6 +120,7 @@ pub fn recomposite_if_necessary(env: &mut Environment, force: bool) -> Option<In
     let scale_hack: u32 = env.options.scale_hack.get();
     let fb_width = screen_bounds.size.width as u32 * scale_hack;
     let fb_height = screen_bounds.size.height as u32 * scale_hack;
+    let default_fb = env.window().get_default_framebuffer();
     let present_frame_args = (
         env.window().viewport(),
         env.window().rotation_matrix(),
@@ -251,7 +252,7 @@ pub fn recomposite_if_necessary(env: &mut Environment, force: bool) -> Option<In
     // default framebuffer (0) so we need to unbind our internal framebuffer.
     unsafe {
         gles.BindTexture(gles11::TEXTURE_2D, texture);
-        gles.BindFramebufferOES(gles11::FRAMEBUFFER_OES, 0);
+        gles.BindFramebufferOES(gles11::FRAMEBUFFER_OES, default_fb);
         present_frame(
             gles,
             present_frame_args.0,
@@ -259,7 +260,8 @@ pub fn recomposite_if_necessary(env: &mut Environment, force: bool) -> Option<In
             present_frame_args.2,
         );
     }
-    env.window().swap_window();
+
+    env.window_mut().swap_window();
 
     new_recomposite_next
 }
