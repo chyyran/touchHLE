@@ -189,7 +189,7 @@ impl Window {
     /// display fullscreen, but SDL2 will let us control the orientation, i.e.
     /// Android devices.
     pub fn rotatable_fullscreen() -> bool {
-        env::consts::OS == "android"
+        env::consts::OS == "android" || env::consts::OS == "ios" || env::consts::OS == "ios-sim"
     }
     pub fn new(
         title: &str,
@@ -1011,14 +1011,15 @@ impl Window {
     fn display_splash(&mut self) {
         assert!(self.splash_image.is_some());
 
+        self.make_internal_gl_ctx_current();
+        self.rebind_framebuffer();
+        self.swap_window();
+
         // OpenGL ES expects bottom-to-top row order for image data, but our
         // image data will be top-to-bottom. A reflection transform compensates.
         let matrix = self.rotation_matrix().multiply(&Matrix::y_flip());
         let (vx, vy, vw, vh) = self.viewport();
         let viewport = (vx, vy + self.viewport_y_offset(), vw, vh);
-
-        self.make_internal_gl_ctx_current();
-        self.rebind_framebuffer();
 
         let image = self.splash_image.as_ref().unwrap();
         let gl_ctx = self.internal_gl_ctx.as_deref_mut().unwrap();
